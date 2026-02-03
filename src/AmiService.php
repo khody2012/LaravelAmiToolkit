@@ -27,7 +27,7 @@ class AmiService
 
     public function originate(array $params)
     {
-        return $this->client->action('Originate', $params,true);
+        return $this->client->action('Originate', $params);
     }
 
 }
