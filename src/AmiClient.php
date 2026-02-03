@@ -63,19 +63,22 @@ class AmiClient
         return true;
     }
 
-    public function action(string $action, array $params = []): string
+    public function action(string $action, array $params = [], bool $fireAndForget = false): ?string
     {
         $this->ensureConnected();
-
         $message = $this->buildMessage($action, $params);
-        return $this->send($message);
+        return $this->send($message, $fireAndForget);
     }
 
-    public function send(string $message): string
+    public function send(string $message, bool $fireAndForget = false): ?string
     {
         $this->ensureConnected();
-
         $this->write($message);
+
+        if ($fireAndForget) {
+            return null; // 🔥 این خط نجات‌دهنده‌ست
+        }
+
         return $this->read();
     }
 
