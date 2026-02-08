@@ -13,9 +13,6 @@ class LaravelAmiServiceProvider extends ServiceProvider
             __DIR__.'/../config/ami.php' => config_path('ami.php'),
         ], 'ami-config');
 
-        $this->commands([
-            OriginateCall::class,
-        ]);
     }
 
     public function register()
