@@ -3,7 +3,7 @@
 namespace Khody2012\LaravelAmiToolkit\Commands;
 
 use Khody2012\LaravelAmiToolkit\AmiConnection;
-use Illuminate\Console\Command;;
+use Illuminate\Console\Command;
 use React\EventLoop\Loop;
 
 class AmiListenCommand extends Command

@@ -6,13 +6,13 @@ use Khody2012\LaravelAmiToolkit\AmiService;
 use React\Promise\PromiseInterface;
 use InvalidArgumentException;
 use RuntimeException;
-
+use Illuminate\Console\Command;;
 /**
  * Class OriginateCall
  *
  * Fluent builder & executor for AMI Originate action (async).
  */
-class OriginateCall
+class OriginateCall extends Command
 {
     protected AmiService $amiService;
     protected array $params = [];
@@ -101,8 +101,6 @@ class OriginateCall
     {
         $promise = $this->execute(false);
 
-        // اگر در context بدون loop/run هستی، این کار نمی‌کنه
-        // بهتره از reactphp-promise-timer یا در command با Loop::run() استفاده کنی
-        return $promise->wait(); // فقط اگر در محیط sync-wrapper داری
+        return $promise->wait();
     }
 }
