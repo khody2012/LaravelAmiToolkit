@@ -7,6 +7,7 @@ use React\EventLoop\LoopInterface;
 use React\Promise\PromiseInterface;
 use React\Socket\ConnectionInterface;
 use React\Socket\Connector;
+use React\EventLoop\Loop;
 use RuntimeException;
 
 class AmiConnection
