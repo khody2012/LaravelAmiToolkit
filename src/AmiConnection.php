@@ -48,13 +48,16 @@ class AmiConnection
     {
         $this->sendAction('Login', [
             'Username' => $this->config['username'],
-            'Secret' => $this->config['secret'],
-            'Events' => 'on',
+            'Secret'   => $this->config['secret'],
+            'Events'   => 'on',
         ], function ($response) {
             if (stripos($response['Response'] ?? '', 'Success') === false) {
-                throw new RuntimeException("AMI Login failed");
+                throw new RuntimeException("AMI Login failed: " . ($response['Message'] ?? 'Unknown error'));
             }
+
             Log::info('AMI Login successful');
+
+            $this->startHeartbeat();
         });
     }
 
@@ -82,7 +85,7 @@ class AmiConnection
             return \React\Promise\resolve($this);
         }
 
-        Log::info('اتصال AMI وجود ندارد، در حال اتصال مجدد...');
+        Log::info('Connecting Again');
 
         return $this->connect();
     }
@@ -106,14 +109,49 @@ class AmiConnection
 
             $event = $this->parseRaw($raw);
 
-            if ($event) {
-                if (isset($event['ActionID']) && isset($this->pendingActions[$event['ActionID']])) {
-                    $callback = $this->pendingActions[$event['ActionID']];
-                    unset($this->pendingActions[$event['ActionID']]);
-                    $callback($event);
-                } elseif (isset($event['Event'])) {
-                    event(new \Khody2012\LaravelAmiToolkit\Events\AmiRawEvent($event));
-                }
+            if (!$event || !isset($event['Event'])) {
+                continue;
+            }
+
+            $eventName = $event['Event'];
+
+            if (isset($event['ActionID']) && isset($this->pendingActions[$event['ActionID']])) {
+                $callback = $this->pendingActions[$event['ActionID']];
+                unset($this->pendingActions[$event['ActionID']]);
+                $callback($event);
+                continue;
+            }
+
+            switch ($eventName) {
+                case 'Newchannel':
+                    event(new \Khody2012\LaravelAmiToolkit\Events\AmiNewchannelEvent($event));
+                    break;
+
+                case 'NewCallerid':
+                    event(new \Khody2012\LaravelAmiToolkit\Events\AmiNewCalleridEvent($event));
+                    break;
+
+                case 'AgentCalled':
+                    event(new \Khody2012\LaravelAmiToolkit\Events\AmiAgentCalledEvent($event));
+                    break;
+
+                case 'AgentConnect':
+                    event(new \Khody2012\LaravelAmiToolkit\Events\AmiAgentConnectEvent($event));
+                    break;
+
+                case 'BridgeEnter':
+                    event(new \Khody2012\LaravelAmiToolkit\Events\AmiBridgeEvent($event));
+                    break;
+
+                case 'Hangup':
+                    event(new \Khody2012\LaravelAmiToolkit\Events\AmiHangupEvent($event));
+                    break;
+
+                default:
+                    if (config('ami.log_unknown_events', true)) {
+                        Log::debug("AMI Event: {$eventName}", $event);
+                    }
+                    break;
             }
         }
     }
@@ -145,8 +183,13 @@ class AmiConnection
         $this->connection = null;
         Log::warning("AMI disconnected: $reason");
 
-        $this->loop->addTimer(5, function () {
-            $this->connect()->otherwise(function ($e) {
+        $delay = min(60, pow(2, $this->reconnectAttempts ?? 0));
+        $this->reconnectAttempts = ($this->reconnectAttempts ?? 0) + 1;
+
+        $this->loop->addTimer($delay, function () {
+            $this->connect()->then(function () {
+                $this->reconnectAttempts = 0;
+            })->otherwise(function ($e) {
                 Log::error("Reconnect failed: " . $e->getMessage());
             });
         });
@@ -154,6 +197,38 @@ class AmiConnection
 
     public function disconnect(): void
     {
+        if (isset($this->heartbeatTimer)) {
+            $this->loop->cancelTimer($this->heartbeatTimer);
+            $this->heartbeatTimer = null;
+        }
+
         $this->connection?->end();
+        $this->connection = null;
+        $this->isConnected = false;
+    }
+
+    public function startHeartbeat(): void
+    {
+        if (isset($this->heartbeatTimer)) {
+            $this->loop->cancelTimer($this->heartbeatTimer);
+        }
+
+        $interval = config('ami.heartbeat_interval', 30);
+
+        $this->heartbeatTimer = $this->loop->addPeriodicTimer($interval, function () {
+            if ($this->isConnected && $this->connection !== null) {
+                $this->sendAction('Ping', [], function ($response) {
+                    if (stripos($response['Response'] ?? '', 'Success') !== false) {
+                        Log::debug('AMI Ping successful');
+                    } else {
+                        Log::warning('AMI Ping failed', $response);
+                        $this->onDisconnect('Ping failed');
+                    }
+                });
+            } else {
+                $this->connect();
+            }
+        });
+
     }
 }
