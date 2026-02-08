@@ -1,14 +1,11 @@
 <?php
 
-namespace Khody2012\LaravelAmiToolkit\Commands;
+namespace Khody2012\LaravelAmiToolkit\Actions;
 
 use Khody2012\LaravelAmiToolkit\AmiService;
 use React\Promise\PromiseInterface;
 use InvalidArgumentException;
 
-/**
- * Fluent builder for originating calls via AMI
- */
 class OriginateCall
 {
     protected AmiService $amiService;
@@ -33,8 +30,8 @@ class OriginateCall
 
     public function extension(string $exten, string $context, int $priority = 1): self
     {
-        $this->params['Exten'] = $exten;
-        $this->params['Context'] = $context;
+        $this->params['Exten']    = $exten;
+        $this->params['Context']  = $context;
         $this->params['Priority'] = $priority;
         return $this;
     }
@@ -45,11 +42,9 @@ class OriginateCall
         return $this;
     }
 
-    // متد اصلی اجرا – async و Promise-based
     public function run(bool $fireAndForget = false): PromiseInterface
     {
         $this->validateParams();
-
         return $this->amiService->originate($this->params, $fireAndForget);
     }
 
@@ -69,7 +64,7 @@ class OriginateCall
         }
 
         if ($hasExten && (empty($this->params['Context']) || !isset($this->params['Priority']))) {
-            throw new InvalidArgumentException('Context and Priority required with Exten');
+            throw new InvalidArgumentException('Context and Priority required when using Exten');
         }
     }
 }

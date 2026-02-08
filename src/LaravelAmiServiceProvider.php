@@ -3,10 +3,7 @@
 namespace Khody2012\LaravelAmiToolkit;
 
 use Illuminate\Support\ServiceProvider;
-use Khody2012\LaravelAmiToolkit\AmiClient;
-use Khody2012\LaravelAmiToolkit\AmiService;
-use Khody2012\LaravelAmiToolkit\Commands\OriginateCall;
-use Khody2012\LaravelAmiToolkit\AmiConnection;
+use Khody2012\LaravelAmiToolkit\Actions\OriginateCall;
 
 class LaravelAmiServiceProvider extends ServiceProvider
 {
@@ -49,9 +46,13 @@ class LaravelAmiServiceProvider extends ServiceProvider
         $this->app->alias(AmiService::class, 'ami');
 
         // کامند originate (اگر هنوز نیاز داری)
-        $this->app->singleton(OriginateCall::class, function ($app) {
-            return new OriginateCall($app->make(AmiService::class));
-        });
+        $this->app->singleton(OriginateCall::class,
+            function ($app) {
+                return new OriginateCall(
+                    $app->make(AmiService::class)
+                );
+            }
+        );
         $this->commands([
             \Khody2012\LaravelAmiToolkit\Commands\AmiListenCommand::class,
         ]);
