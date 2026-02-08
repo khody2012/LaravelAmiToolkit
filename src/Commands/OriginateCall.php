@@ -56,7 +56,7 @@ class OriginateCall extends Command
      */
     public function async(bool $async = true): self
     {
-        $this->params['Async'] = $async ? 'yes' : 'no';
+        $this->params['Async'] = $async ? 'ture' : 'false';
         return $this;
     }
 
