@@ -34,4 +34,9 @@ class AmiNewchannelEvent
     {
         return !empty($this->callerIdNum) && str_starts_with($this->channel, 'SIP/') && $this->context === 'from-pstn';
     }
+
+    public function getCallerNumber(): ?string
+    {
+        return $this->callerIdNum;
+    }
 }
