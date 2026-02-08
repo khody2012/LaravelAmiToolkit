@@ -3,53 +3,106 @@
 namespace Khody2012\LaravelAmiToolkit\Commands;
 
 use Khody2012\LaravelAmiToolkit\AmiService;
-use Exception;
+use React\Promise\PromiseInterface;
+use InvalidArgumentException;
+use RuntimeException;
 
 /**
  * Class OriginateCall
  *
- * Executes the Originate action on AMI to initiate a call.
+ * Fluent builder & executor for AMI Originate action (async).
  */
 class OriginateCall
 {
     protected AmiService $amiService;
-
     protected array $params = [];
 
-    /**
-     * OriginateCall constructor.
-     *
-     * @param AmiService $amiService
-     */
     public function __construct(AmiService $amiService)
     {
         $this->amiService = $amiService;
     }
 
     /**
-     * Set the parameters for the originate call.
-     *
-     * @param array $params
-     * @return $this
+     * Set parameters (fluent)
      */
     public function setParams(array $params): self
     {
-        $this->params = $params;
+        $this->params = array_merge($this->params, $params);
         return $this;
     }
 
     /**
-     * Execute the Originate command.
-     *
-     * @return string
-     * @throws Exception
+     * Required: Channel to originate from (e.g. SIP/1000)
      */
-    public function execute(): string
+    public function channel(string $channel): self
     {
-        if (empty($this->params)) {
-            throw new Exception("Originate parameters are not set.");
+        $this->params['Channel'] = $channel;
+        return $this;
+    }
+
+    /**
+     * Required if using extension: Extension, Context, Priority
+     */
+    public function extension(string $exten, string $context, int $priority = 1): self
+    {
+        $this->params['Exten']    = $exten;
+        $this->params['Context']  = $context;
+        $this->params['Priority'] = $priority;
+        return $this;
+    }
+
+    /**
+     * Optional: Async mode (recommended for non-blocking)
+     */
+    public function async(bool $async = true): self
+    {
+        $this->params['Async'] = $async ? 'yes' : 'no';
+        return $this;
+    }
+
+    /**
+     * Execute the originate action asynchronously
+     *
+     * @return PromiseInterface<array|null>  // response or null if fireAndForget
+     * @throws InvalidArgumentException
+     */
+    public function execute(bool $fireAndForget = false): PromiseInterface
+    {
+        $this->validateParams();
+
+        return $this->amiService->originate($this->params, $fireAndForget);
+    }
+
+    protected function validateParams(): void
+    {
+        if (empty($this->params['Channel'])) {
+            throw new InvalidArgumentException('Channel is required for Originate');
         }
 
-        return $this->amiService->originate($this->params);
+        $hasExten = !empty($this->params['Exten']);
+        $hasApp   = !empty($this->params['Application']);
+
+        if (!$hasExten && !$hasApp) {
+            throw new InvalidArgumentException(
+                'Originate requires either Exten+Context+Priority or Application+Data'
+            );
+        }
+
+        if ($hasExten && (empty($this->params['Context']) || empty($this->params['Priority']))) {
+            throw new InvalidArgumentException('Context and Priority required when using Exten');
+        }
+    }
+
+    /**
+     * Convenience: Execute and wait for result (sync-like in blocking context)
+     * Warning: Blocks the event loop – use only in console/commands, not web
+     */
+    public function executeAndWait(): ?array
+    {
+        $promise = $this->execute(false);
+
+        // اگر در context بدون loop/run هستی، این کار نمی‌کنه
+        // بهتره از reactphp-promise-timer یا در command با Loop::run() استفاده کنی
+        return $promise->wait(); // فقط اگر در محیط sync-wrapper داری
     }
 }
