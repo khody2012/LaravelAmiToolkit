@@ -50,7 +50,7 @@ class LaravelAmiServiceProvider extends ServiceProvider
 
         // کامند originate (اگر هنوز نیاز داری)
         $this->app->singleton(OriginateCall::class, function ($app) {
-            return new OriginateCall($app->make('ami'));
+            return new OriginateCall($app->make(AmiService::class));
         });
         $this->commands([
             \Khody2012\LaravelAmiToolkit\Commands\AmiListenCommand::class,
