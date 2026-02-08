@@ -18,7 +18,7 @@ class AmiConnection
     protected $connection;
     protected $isConnected = false;
     protected $buffer = '';
-    protected $pendingActions = []; // برای match کردن ActionID با پاسخ‌ها
+    protected $pendingActions = [];
 
     public function __construct(array $config, LoopInterface $loop = null)
     {
@@ -48,8 +48,8 @@ class AmiConnection
     {
         $this->sendAction('Login', [
             'Username' => $this->config['username'],
-            'Secret'   => $this->config['secret'],
-            'Events'   => 'on',  // مهم: برای دریافت ایونت‌ها
+            'Secret' => $this->config['secret'],
+            'Events' => 'on',
         ], function ($response) {
             if (stripos($response['Response'] ?? '', 'Success') === false) {
                 throw new RuntimeException("AMI Login failed");
@@ -58,18 +58,33 @@ class AmiConnection
         });
     }
 
-    public function sendAction(string $action, array $params = [], ?callable $onResponse = null): void
+    public function sendAction(string $action, array $params = [], ?callable $onResponse = null): PromiseInterface
     {
-        $actionId = uniqid('act_', true);
-        $params['ActionID'] = $actionId;
+        return $this->ensureConnected()->then(function () use ($action, $params, $onResponse) {
+            $actionId = uniqid('act_', true);
+            $params['ActionID'] = $actionId;
 
-        $message = $this->buildMessage($action, $params);
+            $message = $this->buildMessage($action, $params);
 
-        $this->connection->write($message);
+            $this->connection->write($message);
 
-        if ($onResponse) {
-            $this->pendingActions[$actionId] = $onResponse;
+            if ($onResponse) {
+                $this->pendingActions[$actionId] = $onResponse;
+            }
+
+            return \React\Promise\resolve(true);
+        });
+    }
+
+    public function ensureConnected(): PromiseInterface
+    {
+        if ($this->isConnected && $this->connection !== null) {
+            return \React\Promise\resolve($this);
         }
+
+        Log::info('اتصال AMI وجود ندارد، در حال اتصال مجدد...');
+
+        return $this->connect();
     }
 
     protected function setupHandlers(): void
@@ -97,7 +112,6 @@ class AmiConnection
                     unset($this->pendingActions[$event['ActionID']]);
                     $callback($event);
                 } elseif (isset($event['Event'])) {
-                    // ایونت‌های unsolicited → dispatch به Laravel events
                     event(new \Khody2012\LaravelAmiToolkit\Events\AmiRawEvent($event));
                 }
             }
@@ -128,9 +142,14 @@ class AmiConnection
     protected function onDisconnect(string $reason): void
     {
         $this->isConnected = false;
+        $this->connection = null;
         Log::warning("AMI disconnected: $reason");
-        // exponential backoff reconnect اینجا پیاده کن (مثل کد قبلی)
-        // ...
+
+        $this->loop->addTimer(5, function () {
+            $this->connect()->otherwise(function ($e) {
+                Log::error("Reconnect failed: " . $e->getMessage());
+            });
+        });
     }
 
     public function disconnect(): void

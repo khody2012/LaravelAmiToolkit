@@ -42,7 +42,6 @@ class LaravelAmiServiceProvider extends ServiceProvider
         // alias برای راحت‌تر استفاده کردن (Ami::method())
         $this->app->alias(AmiService::class, 'ami');
 
-        // کامند originate (اگر هنوز نیاز داری)
         $this->app->singleton(OriginateCall::class,
             function ($app) {
                 return new OriginateCall(
