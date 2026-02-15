@@ -12,13 +12,15 @@ use RuntimeException;
 
 class AmiConnection
 {
-    protected $config;
-    protected $loop;
-    protected $connector;
-    protected $connection;
-    protected $isConnected = false;
-    protected $buffer = '';
-    protected $pendingActions = [];
+    protected array $config;
+    protected LoopInterface $loop;
+    protected Connector $connector;
+    protected ?ConnectionInterface $connection = null;
+    protected bool $isConnected = false;
+    protected string $buffer = '';
+    protected array $pendingActions = [];
+    protected ?int $heartbeatTimer = null;
+    protected int $reconnectAttempts = 0;
 
     public function __construct(array $config, LoopInterface $loop = null)
     {
@@ -56,7 +58,6 @@ class AmiConnection
             }
 
             Log::info('AMI Login successful');
-
             $this->startHeartbeat();
         });
     }
@@ -85,7 +86,7 @@ class AmiConnection
             return \React\Promise\resolve($this);
         }
 
-        Log::info('Connecting Again');
+        Log::info('اتصال AMI قطع است، تلاش مجدد...');
 
         return $this->connect();
     }
@@ -181,10 +182,9 @@ class AmiConnection
     {
         $this->isConnected = false;
         $this->connection = null;
-        Log::warning("AMI disconnected: $reason");
 
-        $delay = min(60, pow(2, $this->reconnectAttempts ?? 0));
-        $this->reconnectAttempts = ($this->reconnectAttempts ?? 0) + 1;
+        $delay = min(60, pow(2, $this->reconnectAttempts));
+        $this->reconnectAttempts++;
 
         $this->loop->addTimer($delay, function () {
             $this->connect()->then(function () {
@@ -205,6 +205,8 @@ class AmiConnection
         $this->connection?->end();
         $this->connection = null;
         $this->isConnected = false;
+        $this->pendingActions = [];
+        $this->buffer = '';
     }
 
     public function startHeartbeat(): void
@@ -216,19 +218,23 @@ class AmiConnection
         $interval = config('ami.heartbeat_interval', 30);
 
         $this->heartbeatTimer = $this->loop->addPeriodicTimer($interval, function () {
-            if ($this->isConnected && $this->connection !== null) {
-                $this->sendAction('Ping', [], function ($response) {
-                    if (stripos($response['Response'] ?? '', 'Success') !== false) {
-                        Log::debug('AMI Ping successful');
-                    } else {
-                        Log::warning('AMI Ping failed', $response);
-                        $this->onDisconnect('Ping failed');
-                    }
-                });
-            } else {
+            if (!$this->isConnected || $this->connection === null) {
                 $this->connect();
+                return;
             }
+
+            $this->sendAction('Ping', [], function ($response) {
+                if (stripos($response['Response'] ?? '', 'Success') !== false) {
+                } else {
+                    $this->onDisconnect('Ping failed');
+                }
+            });
         });
 
+    }
+
+    public function isConnected(): bool
+    {
+        return $this->isConnected && $this->connection !== null;
     }
 }
