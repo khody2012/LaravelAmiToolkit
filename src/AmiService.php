@@ -58,9 +58,9 @@ class AmiService
         return $this->client->action($action, $params, $fireAndForget);
     }
 
-    public function hangup(string $channel): PromiseInterface
+    public function hangup(string $channel, bool $fireAndForget = true): PromiseInterface
     {
-        return $this->action('Hangup', ['Channel' => $channel]);
+        return $this->action('Hangup', ['Channel' => $channel], $fireAndForget);
     }
 
     public function status(): PromiseInterface

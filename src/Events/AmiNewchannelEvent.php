@@ -10,6 +10,7 @@ class AmiNewchannelEvent
     use Dispatchable, SerializesModels;
 
     public string $uniqueId;
+    public string $linkedId;
     public string $channel;
     public ?string $callerIdNum;
     public ?string $callerIdName;
@@ -21,6 +22,7 @@ class AmiNewchannelEvent
     public function __construct(array $data)
     {
         $this->uniqueId         = $data['Uniqueid']         ?? '';
+        $this->linkedId         = $data['Linkedid']         ?? $this->uniqueId;
         $this->channel          = $data['Channel']          ?? '';
         $this->callerIdNum      = $data['CallerIDNum']      ?? null;
         $this->callerIdName     = $data['CallerIDName']     ?? null;

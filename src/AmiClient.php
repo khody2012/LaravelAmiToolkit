@@ -22,12 +22,20 @@ class AmiClient
 
     public function action(string $action, array $params = [], bool $fireAndForget = false): PromiseInterface
     {
-        return new Promise(function ($resolve, $reject) use ($action, $params, $fireAndForget) {
-            $this->connection->sendAction($action, $params, function ($response) use ($resolve, $reject, $fireAndForget) {
+        if ($fireAndForget) {
+            return $this->connection->ensureConnected()->then(function () use ($action, $params) {
+                $this->connection->sendAction($action, $params);
+
+                return null;
+            });
+        }
+
+        return new Promise(function ($resolve, $reject) use ($action, $params) {
+            $this->connection->sendAction($action, $params, function ($response) use ($resolve, $reject) {
                 if (stripos($response['Response'] ?? '', 'Error') !== false) {
                     $reject(new \Exception($response['Message'] ?? 'AMI action failed'));
                 } else {
-                    $resolve($fireAndForget ? null : $response);
+                    $resolve($response);
                 }
             });
         });

@@ -108,12 +108,25 @@ class AmiConnection
             $raw = substr($this->buffer, 0, $pos);
             $this->buffer = substr($this->buffer, $pos + 4);
 
-            $event = $this->parseRaw($raw);
+            $message = $this->parseRaw($raw);
 
-            if (!$event || !isset($event['Event'])) {
+            if (!$message) {
                 continue;
             }
 
+            if (isset($message['Response'], $message['ActionID'], $this->pendingActions[$message['ActionID']])) {
+                $callback = $this->pendingActions[$message['ActionID']];
+                unset($this->pendingActions[$message['ActionID']]);
+                $callback($message);
+
+                continue;
+            }
+
+            if (!isset($message['Event'])) {
+                continue;
+            }
+
+            $event = $message;
             $eventName = $event['Event'];
 
             if (isset($event['ActionID']) && isset($this->pendingActions[$event['ActionID']])) {
