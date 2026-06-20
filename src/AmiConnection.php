@@ -4,6 +4,7 @@ namespace Khody2012\LaravelAmiToolkit;
 
 use Illuminate\Support\Facades\Log;
 use React\EventLoop\LoopInterface;
+use React\EventLoop\TimerInterface;
 use React\Promise\PromiseInterface;
 use React\Socket\ConnectionInterface;
 use React\Socket\Connector;
@@ -19,7 +20,7 @@ class AmiConnection
     protected bool $isConnected = false;
     protected string $buffer = '';
     protected array $pendingActions = [];
-    protected ?int $heartbeatTimer = null;
+    protected ?TimerInterface $heartbeatTimer = null;
     protected int $reconnectAttempts = 0;
 
     public function __construct(array $config, LoopInterface $loop = null)
